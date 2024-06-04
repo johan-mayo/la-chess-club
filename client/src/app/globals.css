@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-.cinzel-<uniquifier > {
-    font-family: "Cinzel", serif;
-    font-optical-sizing: auto;
-    font-weight: <weight>;
-    font-style: normal;
+body {
+    background-color: #fafafa;
 }

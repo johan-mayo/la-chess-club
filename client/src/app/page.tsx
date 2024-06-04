@@ -1,5 +1,10 @@
-import Image from "next/image";
+import { Layout } from "@/components/Layout";
+import { Photos } from "@/components/Photos";
 
 export default function Home() {
-  return <main className="">HOME</main>;
+  return (
+    <Layout>
+      <Photos />
+    </Layout>
+  );
 }
