@@ -1,9 +1,15 @@
 import { SignUp } from "@clerk/nextjs";
+import { Layout } from "@/components/Layout";
+import { Container } from "@/components/Container";
 
 export default function Page() {
   return (
-    <div className="w-full flex items-center justify-center h-screen">
-      <SignUp />
-    </div>
+    <Layout>
+      <Container className="mt-4">
+        <div className="flex items-center justify-center w-full">
+          <SignUp />
+        </div>
+      </Container>
+    </Layout>
   );
 }

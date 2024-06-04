@@ -3,7 +3,7 @@ import clsx from "clsx";
 
 const variantStyles = {
   primary:
-    "bg-red-800 border border-black shadow-md font-semibold text-gray-50 hover:bg-red-700 active:bg-red-800 active:text-gray-100/70 dark:bg-red-700 dark:hover:bg-red-600 dark:active:bg-red-700 dark:active:text-red-100/70",
+    "bg-red-800 border border-black shadow-md font-semibold text-gray-50 hover:bg-red-600 active:bg-red-800 active:text-gray-100/70 dark:bg-red-700 dark:hover:bg-red-700 dark:active:bg-red-700 dark:active:text-red-100/70",
 };
 
 type ButtonProps = {

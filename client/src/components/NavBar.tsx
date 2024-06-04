@@ -1,6 +1,7 @@
 "use client";
 
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NavBar = () => {
@@ -14,12 +15,13 @@ const NavBar = () => {
       <h1
         className={`cinzel-400 ${isAuthenticating ? "text-center w-full" : "text-left"}`}
       >
-        LA Chess Club
+        <Link href={"/"}>LA Chess Club</Link>
       </h1>
+
       {!isAuthenticating && (
-        <div>
+        <div className="text-white">
           <SignedOut>
-            <SignInButton />
+            <SignInButton>Sign In</SignInButton>
           </SignedOut>
 
           <SignedIn>
