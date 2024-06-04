@@ -11,7 +11,7 @@ export function Photos() {
   ];
 
   return (
-    <div className="mt-5 sm:mt-16">
+    <div className="mt-16">
       <div className="-my-4 flex justify-center gap-5 overflow-hidden py-4 sm:gap-8">
         {[
           "https://dajocode-cloud-storage-api.com/api/read?key=la-chess-club/402360bf4d1c488582c5f1a5706fb4e4",
