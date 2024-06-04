@@ -5,7 +5,7 @@ import { Container } from "@/components/Container";
 export default function Page() {
   return (
     <Layout>
-      <Container className="mt-4">
+      <Container className="my-4">
         <div className="flex items-center justify-center w-full">
           <SignUp />
         </div>
