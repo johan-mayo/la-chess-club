@@ -1,7 +1,7 @@
 import express, { Express, Request, Response } from "express";
 import cors from "cors";
 import { config } from "./config";
-//import routes from "./modules/routes";
+import routes from "./modules/routes";
 
 const app: Express = express();
 
@@ -20,7 +20,7 @@ app.use(
   }),
 );
 
-//app.use(routes);
+app.use(routes);
 
 app.listen(port, () => {
   console.log(`[server]: Server is running at ${host}:${port}`);
