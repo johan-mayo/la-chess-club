@@ -10,16 +10,16 @@ const NavBar = () => {
     pathname.includes("sign-in") || pathname.includes("sign-up");
   return (
     <div
-      className={`bg-red-700 py-3 md:px-20 px-10 min-h-16 flex items-center justify-between font-bold z-50 shadow-2xl`}
+      className={`bg-red-700 py-3 md:px-20 px-10 h-16 flex items-center justify-between font-bold z-50 shadow-2xl`}
     >
       <h1
-        className={`cinzel-400 ${isAuthenticating ? "text-center w-full" : "text-left"}`}
+        className={`cinzel-400 ${isAuthenticating ? "text-center w-full" : "text-left"} text-lg`}
       >
         <Link href={"/"}>LA Chess Club</Link>
       </h1>
 
       {!isAuthenticating && (
-        <div className="text-white">
+        <div className="text-white flex items-center justify-center">
           <SignedOut>
             <SignInButton>Sign In</SignInButton>
           </SignedOut>
