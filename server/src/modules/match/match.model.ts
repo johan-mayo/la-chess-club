@@ -6,13 +6,12 @@ import {
   prop,
   Ref,
 } from "@typegoose/typegoose";
-import { User } from "../user/user.model";
+import { User } from "../user/user.model"; // Adjust the import path according to your project structure
 
-enum Results {
-  Loss = "loss",
-  Win = "win",
-  Draw = "draw",
-  Abort = "abort",
+export enum MatchStatus {
+  Waiting = "waiting",
+  Matched = "matched",
+  Finished = "finished",
 }
 
 @modelOptions({
@@ -26,16 +25,28 @@ enum Results {
 })
 export class Match {
   @prop({ ref: () => User, required: true })
-  public players!: Ref<User>[];
+  public player1!: Ref<User>;
 
-  @prop({ required: true })
+  @prop({ ref: () => User })
+  public player2?: Ref<User>;
+
+  @prop({ enum: MatchStatus, default: MatchStatus.Waiting })
+  public status!: MatchStatus;
+
+  @prop()
   public section!: number;
 
-  @prop({ required: true })
+  @prop()
   public board!: number;
 
   @prop({ type: () => [String], default: ["pending", "pending"] })
-  public result!: Results[];
+  public result!: string[];
+
+  @prop()
+  public player1SocketId!: string;
+
+  @prop()
+  public player2SocketId?: string;
 }
 
 const MatchModel = mongoose.connection

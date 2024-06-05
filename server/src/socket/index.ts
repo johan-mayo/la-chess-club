@@ -1,198 +1,238 @@
-import { Server as SocketIOServer, Socket } from "socket.io";
-import MatchModel from "../modules/match/match.model";
-import UserModel from "../modules/user/user.model";
-import EventModel from "../modules/event/event.model";
-import LeaderboardModel from "../modules/leaderboard/leaderboard.model";
 import mongoose from "mongoose";
+import { Server as SocketIOServer, Socket } from "socket.io";
+import MatchModel, { MatchStatus } from "../modules/match/match.model";
+import UserModel from "../modules/user/user.model";
+import MatchQueueModel from "../modules/matchQueue/matchqueue.model";
 
-interface Player {
-  id: string;
-  username: string;
-}
-
-let waitingPlayer: Player | null = null;
-
-export default function setupSocketHandlers(io: SocketIOServer) {
+export default function handleMatchmaking(io: SocketIOServer) {
   io.on("connection", (socket: Socket) => {
     console.log(`A user connected: ${socket.id}`);
 
-    socket.on("join-matchmaking", async (username: string) => {
-      const player: Player = { id: socket.id, username };
+    socket.on("join-matchmaking", async (clerkUserId: string) => {
+      const user = await UserModel.findOne({ clerkUserId });
+      if (!user) {
+        console.log("Failed to find match user", clerkUserId);
+        return;
+      }
 
-      if (waitingPlayer) {
-        // Start a match
-        const opponent = waitingPlayer;
-        waitingPlayer = null;
-
-        const section = Math.floor(Math.random() * 10); // Example section number
-        const board = Math.floor(Math.random() * 10); // Example board number
-
-        const session = await mongoose.startSession();
-        session.startTransaction();
-
-        try {
-          // Create a new match
-          const match = await MatchModel.create(
-            [
-              {
-                players: [player.id, opponent.id],
-                section,
-                board,
-                result: ["pending", "pending"],
-              },
-            ],
-            { session },
-          );
-
-          // Find today's event and update it
-          const today = new Date().toISOString().split("T")[0];
-          await EventModel.findOneAndUpdate(
-            { date: today },
-            { $push: { activeMatches: match[0]?._id } },
-            { new: true, upsert: true, session },
-          );
-
-          await session.commitTransaction();
-          session.endSession();
-
-          socket.emit("match-found", { opponent, section, board });
-          io.to(opponent.id).emit("match-found", {
-            opponent: player,
-            section,
-            board,
-          });
-        } catch (error) {
-          await session.abortTransaction();
-          session.endSession();
-          console.error("Error during matchmaking transaction:", error);
-          socket.emit("error", "An error occurred during matchmaking");
-        }
-      } else {
-        // No waiting player, add this player to the waiting list
-        waitingPlayer = player;
-        socket.emit("waiting", { message: "Waiting for an opponent..." });
+      const isInMatch = await rejoinMatch(user.id, socket.id, io);
+      if (!isInMatch) {
+        await startMatchmaking(clerkUserId, socket.id, io);
       }
     });
 
-    socket.on("submit-match-result", async ({ matchId, result }) => {
-      const session = await mongoose.startSession();
-      session.startTransaction();
-
-      try {
-        const match = await MatchModel.findById(matchId).session(session);
-        if (!match) {
-          throw new Error("Match not found");
-        }
-
-        match.result = result;
-        await match.save();
-
-        const player1 = await UserModel.findById(match.players[0]).session(
-          session,
-        );
-        const player2 = await UserModel.findById(match.players[1]).session(
-          session,
-        );
-
-        if (!player1 || !player2) {
-          throw new Error("Players not found");
-        }
-
-        // Calculate scores based on results
-        let score1 = 0;
-        let score2 = 0;
-        if (result[0] === "win" && result[1] === "loss") {
-          score1 = 1;
-          score2 = 0;
-        } else if (result[0] === "loss" && result[1] === "win") {
-          score1 = 0;
-          score2 = 1;
-        } else if (result[0] === "draw" && result[1] === "draw") {
-          score1 = 0.5;
-          score2 = 0.5;
-        }
-
-        // Update leaderboard
-        const leaderboard = await LeaderboardModel.findOne().session(session);
-        if (leaderboard) {
-          const user1Index = leaderboard.users.findIndex(
-            (user) => user.user.toString() === player1.id,
-          );
-          const user2Index = leaderboard.users.findIndex(
-            (user) => user.user.toString() === player2.id,
-          );
-
-          if (user1Index >= 0) {
-            (
-              leaderboard.users[user1Index] as { user: any; score: number }
-            ).score += score1;
-          } else {
-            leaderboard.users.push({ user: player1.id, score: score1 });
-          }
-
-          if (user2Index >= 0) {
-            (
-              leaderboard.users[user2Index] as { user: any; score: number }
-            ).score += score2;
-          } else {
-            leaderboard.users.push({ user: player2.id, score: score2 });
-          }
-
-          await leaderboard.save();
-        } else {
-          // Create a new leaderboard if it doesn't exist
-          await LeaderboardModel.create(
-            [
-              {
-                users: [
-                  { user: player1.id, score: score1 },
-                  { user: player2.id, score: score2 },
-                ],
-              },
-            ],
-            { session },
-          );
-        }
-
-        // Update event to move match from active to past matches
-        const today = new Date().toISOString().split("T")[0];
-        const event = await EventModel.findOneAndUpdate(
-          { date: today },
-          {
-            $pull: { activeMatches: match._id },
-            $push: { pastMatches: match._id },
-          },
-          { session },
-        );
-
-        if (!event) {
-          throw new Error("Event not found");
-        }
-
-        await session.commitTransaction();
-        session.endSession();
-
-        io.emit("leaderboard-updated", { leaderboard: await getLeaderboard() });
-      } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
-        console.error("Error during match result submission:", error);
-        socket.emit("error", "An error occurred while submitting match result");
-      }
+    socket.on("match-finished", async (matchId: string) => {
+      await handleMatchFinished(matchId, io);
     });
 
     socket.on("disconnect", () => {
       console.log(`A user disconnected: ${socket.id}`);
-      if (waitingPlayer?.id === socket.id) {
-        waitingPlayer = null;
-      }
     });
   });
 }
 
-async function getLeaderboard() {
-  const leaderboard = await LeaderboardModel.findOne()
-    .populate("users.user")
-    .exec();
-  return leaderboard ? leaderboard.users : [];
+async function startMatchmaking(
+  clerkUserId: string,
+  socketId: string,
+  io: SocketIOServer,
+) {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const user = await UserModel.findOne({ clerkUserId });
+    if (!user) {
+      console.log("Failed to find match user", clerkUserId);
+      return;
+    }
+
+    // Find available match or add player to queue
+    const match = await findMatchOrQueue(user.id, socketId, session);
+    if (!match) {
+      await session.commitTransaction();
+      session.endSession();
+      return;
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Notify both players of found match
+    io.to(socketId).emit("match-found", {
+      matchId: match._id,
+      opponentId: match.player1,
+    });
+    io.to(match.player1SocketId as string).emit("match-found", {
+      matchId: match._id,
+      opponentId: user.id,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error during matchmaking:", error);
+    io.emit("error", "An error occurred during matchmaking");
+  }
+}
+
+async function findMatchOrQueue(
+  userId: string,
+  socketId: string,
+  session: any,
+) {
+  // Find an available match or add player to queue within a transaction
+  let match = await MatchModel.findOneAndUpdate(
+    { status: MatchStatus.Waiting },
+    {
+      $set: {
+        status: MatchStatus.Matched,
+        player2: userId,
+        player2SocketId: socketId,
+      },
+    },
+    { session, new: true },
+  );
+
+  if (!match) {
+    // Check if there are less than 12 matches in total
+    const totalMatches = await MatchModel.countDocuments().session(session);
+    if (totalMatches < 12) {
+      // Create a new match
+      const { section, board } = await getAvailableSectionAndBoard(session);
+      await MatchModel.create(
+        [
+          {
+            player1: userId,
+            status: MatchStatus.Waiting,
+            section,
+            board,
+            player1SocketId: socketId,
+          },
+        ],
+        { session },
+      );
+    } else {
+      // No available match, add player to queue
+      await MatchQueueModel.create([{ userId, socketId }], { session });
+    }
+  }
+
+  return match;
+}
+
+async function getAvailableSectionAndBoard(session: any) {
+  const matches = await MatchModel.find().session(session);
+  const sections = 3;
+  const boards = 4;
+
+  for (let section = 1; section <= sections; section++) {
+    for (let board = 1; board <= boards; board++) {
+      const existingMatch = matches.find(
+        (match) => match.section === section && match.board === board,
+      );
+      if (!existingMatch) {
+        return { section, board };
+      }
+    }
+  }
+
+  throw new Error("No available section and board found");
+}
+
+async function rejoinMatch(
+  userId: string,
+  socketId: string,
+  io: SocketIOServer,
+) {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Find active match for the user
+    const match = await MatchModel.findOne({
+      $or: [{ player1: userId }, { player2: userId }],
+      status: MatchStatus.Matched,
+    }).session(session);
+
+    if (!match) {
+      await session.commitTransaction();
+      session.endSession();
+      return false;
+    }
+
+    if (match.player1.toString() === userId) {
+      match.player1SocketId = socketId;
+    } else {
+      match.player2SocketId = socketId;
+    }
+
+    await match.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+
+    // Notify player of rejoining match
+    io.to(socketId).emit("match-rejoined", {
+      matchId: match._id,
+      opponentId:
+        match.player1.toString() === userId ? match.player2 : match.player1,
+    });
+    return true;
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error during rejoining match:", error);
+    io.emit("error", "An error occurred while rejoining match");
+    return false;
+  }
+}
+
+async function handleMatchFinished(matchId: string, io: SocketIOServer) {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const match = await MatchModel.findByIdAndUpdate(
+      matchId,
+      { status: MatchStatus.Finished },
+      { session, new: true },
+    );
+
+    if (!match) {
+      throw new Error("Match not found");
+    }
+
+    // Check queue for next player
+    const queuedPlayer =
+      await MatchQueueModel.findOneAndDelete().session(session);
+    if (queuedPlayer) {
+      const { section, board } = match;
+      const newMatch = await MatchModel.create(
+        [
+          {
+            player1: queuedPlayer.userId,
+            status: MatchStatus.Waiting,
+            section,
+            board,
+            player1SocketId: queuedPlayer.socketId,
+          },
+        ],
+        { session },
+      );
+
+      await session.commitTransaction();
+      session.endSession();
+
+      // Notify the new player of the found match
+      io.to(queuedPlayer.socketId).emit("match-found", {
+        matchId: (newMatch as any)._id,
+        opponentId: null,
+      });
+    } else {
+      await session.commitTransaction();
+      session.endSession();
+    }
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error handling finished match:", error);
+  }
 }

@@ -25,6 +25,9 @@ export const config = {
     logLevel: "info",
     frontend: FRONTEND,
   },
+  clerk: {
+    webhookSecret: process.env.WEBHOOK_SECRET,
+  },
   nodeMailer: {
     host: "smtp.gmail.com",
     port: 587,
