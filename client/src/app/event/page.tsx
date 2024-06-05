@@ -59,6 +59,7 @@ const Event = () => {
   const [player2, setPlayer2] = useState<User>();
   const [waitingOnResults, setWaitingOnResults] = useState(false);
   const [submittedResults, setSubmittedResults] = useState(false);
+  const [oponent, setOponent] = useState("");
 
   const { isLoaded, userId } = useAuth();
 
@@ -81,6 +82,7 @@ const Event = () => {
       const match = await getMatch(data.matchId);
       const player1 = await getUser(match.player1);
       const player2 = await getUser(match.player2);
+      setOponent(data.opponentId);
       setMatch(match);
       setPlayer1(player1);
       setPlayer2(player2);
@@ -110,12 +112,29 @@ const Event = () => {
 
       const waitingOnresults =
         !match.resultSubmitted[1] || !match.resultSubmitted[0];
+      setOponent(data.opponentId);
       setSubmittedResults(submittedResults);
       setWaitingOnResults(waitingOnresults);
       setPlayer1(player1);
       setPlayer2(player2);
       setMatch(match);
       // Update UI to display the matched opponent
+    });
+
+    socket.on("rematch-start", async (data) => {
+      console.log("Match found:", data);
+      setIsLoadingMatchmaking(false);
+      const match = await getMatch(data.matchId);
+      const submittedResults =
+        data.opponentId === match.player1
+          ? match.resultSubmitted[1]
+          : match.resultSubmitted[0];
+
+      const waitingOnresults =
+        !match.resultSubmitted[1] || !match.resultSubmitted[0];
+      setSubmittedResults(submittedResults);
+      setWaitingOnResults(waitingOnresults);
+      setMatch(match);
     });
 
     socket.on("message", (data) => {
@@ -166,11 +185,19 @@ const Event = () => {
         {!isLoadingMatchmaking && match !== undefined && (
           <>
             <FaceOffCard
+              oponentId={oponent}
               player1={player1 as User}
               player2={player2 as User}
               match={match as Match}
               waitingOnResults={waitingOnResults}
               submittedResults={submittedResults}
+              acceptRematch={(userId) => {
+                console.log(match._id);
+                socket.emit("accept-rematch", {
+                  matchId: match._id,
+                  userId: userId,
+                });
+              }}
               submitResult={(result) => {
                 console.log(match as Match, result);
                 const old = { ...match, result: [result, result] };

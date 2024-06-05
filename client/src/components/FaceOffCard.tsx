@@ -10,8 +10,10 @@ type FaceOffCardProps = {
   player2: User;
   match: Match;
   submitResult: (key: string) => void;
+  acceptRematch: (userId: string) => void;
   submittedResults: boolean;
   waitingOnResults: boolean;
+  oponentId: string;
 };
 
 const FaceOffCard: React.FC<FaceOffCardProps> = (props) => {
@@ -91,10 +93,26 @@ const FaceOffCard: React.FC<FaceOffCardProps> = (props) => {
       )}
 
       {!props.waitingOnResults && props.submittedResults && (
-        <div className="flex items-center justify-center mt-5 space-x-2">
-          <Button>Rematch</Button>
-          <Button>No Rematch</Button>
-        </div>
+        <>
+          {props.oponentId !== props.match.player1 && (
+            <div className="flex items-center justify-center mt-5 space-x-2">
+              <Button onClick={() => props.acceptRematch(props.match.player1)}>
+                Rematch
+              </Button>
+              <Button>No Rematch</Button>
+            </div>
+          )}
+          {props.oponentId === props.match.player1 && (
+            <div className="flex w-full items-center justify-center mt-10">
+              <div className="flex flex-col">
+                <div className="flex w-full justify-center items-center">
+                  <div className="border-t-transparent border-solid animate-spin rounded-full border-red-200 border-8 h-10 w-10" />
+                </div>
+                <h1 className="font-bold mt-5">Waiting on opponent</h1>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

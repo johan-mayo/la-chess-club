@@ -66,6 +66,37 @@ export default function handleMatchmaking(io: SocketIOServer) {
       }
     });
 
+    socket.on("accept-rematch", async ({ matchId, userId }) => {
+      console.log(matchId, userId);
+      try {
+        const match = await MatchModel.findById(matchId);
+        if (!match) {
+          socket.emit("error", "Match not found");
+          return;
+        }
+
+        if (match.player1.toString() !== userId) {
+          socket.emit("error", "Only player 1 can accept a rematch");
+          return;
+        }
+
+        match.status = MatchStatus.Matched;
+        match.result = ["pending", "pending"];
+        match.resultSubmitted = [false, false];
+        match.rematchAccepted = [false, false];
+        await match.save();
+
+        const player1SocketId = match.player1SocketId;
+        const player2SocketId = match.player2SocketId;
+
+        io.to(player1SocketId).emit("rematch-start", { matchId });
+        io.to(player2SocketId as string).emit("rematch-start", { matchId });
+      } catch (error) {
+        console.error("Error during rematch acceptance:", error);
+        socket.emit("error", "An error occurred during rematch acceptance");
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log(`A user disconnected: ${socket.id}`);
     });
