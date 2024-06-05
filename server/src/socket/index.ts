@@ -150,7 +150,6 @@ async function rejoinMatch(
     // Find active match for the user
     const match = await MatchModel.findOne({
       $or: [{ player1: userId }, { player2: userId }],
-      status: MatchStatus.Matched,
     }).session(session);
 
     if (!match) {
