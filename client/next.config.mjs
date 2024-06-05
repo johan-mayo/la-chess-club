@@ -5,6 +5,7 @@ const nextConfig = {
       "tailwindui.com",
       "dajocode-cloud-storage-api.com",
       "images.unsplash.com",
+      "img.clerk.com",
     ],
   },
 };

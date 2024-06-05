@@ -7,11 +7,50 @@ import { Container } from "@/components/Container";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/Button";
 import Link from "next/link";
+import axios from "axios";
+import FaceOffCard from "@/components/FaceOffCard";
+
+export type Match = {
+  _id: string;
+  player1: string;
+  player2: string;
+  status: string;
+  section: number;
+  board: number;
+  result: [string, string];
+  player1SocketId: string;
+};
+
+export type User = {
+  _id: string;
+  clerkUserId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  imgUrl: string;
+};
+
+const getMatch = async (matchId: string): Promise<Match> => {
+  const res = await axios.get<Match>(
+    `${process.env.NEXT_PUBLIC_BACKEND}/api/match?id=${matchId}`,
+  );
+
+  return res.data;
+};
+
+const getUser = async (userId: string): Promise<User> => {
+  const user = await axios.get<User>(
+    `${process.env.NEXT_PUBLIC_BACKEND}/api/user?id=${userId}`,
+  );
+  return user.data;
+};
 
 const Event = () => {
   const [message, setMessage] = useState("");
   const [isLoadingMatchmaking, setIsLoadingMatchmaking] = useState(false);
-  const [match, setMatch] = useState(false);
+  const [match, setMatch] = useState<Match>();
+  const [player1, setPlayer1] = useState<User>();
+  const [player2, setPlayer2] = useState<User>();
 
   const { isLoaded, userId } = useAuth();
 
@@ -28,17 +67,24 @@ const Event = () => {
       socket.emit("join-matchmaking", userId);
     });
 
-    socket.on("match-found", (data) => {
+    socket.on("match-found", async (data) => {
       console.log("Match found:", data);
       setIsLoadingMatchmaking(false);
-      setMatch(true);
+      const match = await getMatch(data);
+      setMatch(match);
       // Update UI to display the matched opponent
     });
 
-    socket.on("match-rejoined", (data) => {
+    socket.on("match-rejoined", async (data) => {
       console.log("Match found:", data);
       setIsLoadingMatchmaking(false);
-      setMatch(true);
+      const match = await getMatch(data.matchId);
+      const player1 = await getUser(match.player1);
+      const player2 = await getUser(match.player2);
+      setPlayer1(player1);
+      setPlayer2(player2);
+      setMatch(match);
+      console.log(match, player1, player2);
       // Update UI to display the matched opponent
     });
 
@@ -67,7 +113,7 @@ const Event = () => {
         </div>
         <hr />
         <div className="flex items-center justify-center mt-5">
-          {!isLoadingMatchmaking && !match && (
+          {!isLoadingMatchmaking && match === undefined && (
             <Button
               onClick={() => {
                 setIsLoadingMatchmaking(true);
@@ -87,7 +133,15 @@ const Event = () => {
             </div>
           )}
         </div>
-        {!isLoadingMatchmaking && match && <h1>Found Match</h1>}
+        {!isLoadingMatchmaking && match !== undefined && (
+          <>
+            <FaceOffCard
+              player1={player1 as User}
+              player2={player2 as User}
+              match={match as Match}
+            />
+          </>
+        )}
       </Container>
     </Layout>
   );

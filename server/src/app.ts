@@ -77,7 +77,10 @@ app.use("/api", routes);
 
 mongoose
   .connect(config.db.uri as string)
-  .then(() => console.log("MongoDB connected"))
+  .then(() => {
+    console.log("MongoDB connected");
+    mongoose.model("User", UserModel.schema);
+  })
   .catch((err) => console.log(err));
 
 export default app;
