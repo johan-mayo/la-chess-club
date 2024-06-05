@@ -12,7 +12,7 @@ export default function Home() {
           Good Vibes All Around, Join Us!
         </h1>
         <div className="my-10 flex flex-col items-center justify-between space-y-2">
-          <Button>Buy A ticket Here</Button>
+          <Button>Join Event</Button>
           <Button>Check Us Out On Instagram</Button>
         </div>
         <hr />
