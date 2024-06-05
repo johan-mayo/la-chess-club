@@ -2,6 +2,7 @@ import { Button } from "@/components/Button";
 import { Container } from "@/components/Container";
 import { Layout } from "@/components/Layout";
 import { Photos } from "@/components/Photos";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -12,7 +13,9 @@ export default function Home() {
           Good Vibes All Around, Join Us!
         </h1>
         <div className="my-10 flex flex-col items-center justify-between space-y-2">
-          <Button>Join Event</Button>
+          <Button>
+            <Link href="/event">Join Event</Link>
+          </Button>
           <Button>Check Us Out On Instagram</Button>
         </div>
         <hr />
