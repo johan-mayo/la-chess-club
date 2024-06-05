@@ -21,8 +21,49 @@ export default function handleMatchmaking(io: SocketIOServer) {
       }
     });
 
-    socket.on("match-finished", async (matchId: string) => {
-      await handleMatchFinished(matchId, io);
+    socket.on("submit-result", async ({ matchId, result }) => {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        const match = await MatchModel.findById(matchId).session(session);
+        if (!match) {
+          throw new Error("Match not found");
+        }
+
+        if (match.player1SocketId === socket.id) {
+          match.result[0] = result;
+          match.resultSubmitted[0] = true;
+        } else if (match.player2SocketId === socket.id) {
+          match.result[1] = result;
+          match.resultSubmitted[1] = true;
+        } else {
+          throw new Error("Invalid player");
+        }
+
+        if (match.resultSubmitted[0] && match.resultSubmitted[1]) {
+          match.status = MatchStatus.AwaitingResult;
+        }
+
+        await match.save({ session });
+
+        if (match.status === MatchStatus.AwaitingResult) {
+          // Process the results
+          await processMatchResult(match, session, io);
+        } else {
+          socket.emit("waiting-for-result", {
+            message: "Waiting for opponent to submit result...",
+          });
+        }
+
+        await session.commitTransaction();
+      } catch (error) {
+        await session.abortTransaction();
+        console.error("Error during result submission:", error);
+        socket.emit("error", "An error occurred while submitting the result");
+      } finally {
+        session.endSession();
+      }
     });
 
     socket.on("disconnect", () => {
@@ -185,54 +226,45 @@ async function rejoinMatch(
   }
 }
 
-async function handleMatchFinished(matchId: string, io: SocketIOServer) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
+async function processMatchResult(
+  match: any,
+  session: mongoose.ClientSession,
+  io: SocketIOServer,
+) {
   try {
-    const match = await MatchModel.findByIdAndUpdate(
-      matchId,
-      { status: MatchStatus.Finished },
-      { session, new: true },
-    );
+    // Determine the result
+    const resultMessage =
+      match.result[0] === match.result[1]
+        ? "It's a draw!"
+        : match.result[0] === "player1-won"
+          ? "Player 1 won!"
+          : "Player 2 won!";
 
-    if (!match) {
-      throw new Error("Match not found");
-    }
+    // Update the match status to finished
+    match.status = MatchStatus.Finished;
+    await match.save({ session });
 
-    // Check queue for next player
-    const queuedPlayer =
-      await MatchQueueModel.findOneAndDelete().session(session);
-    if (queuedPlayer) {
-      const { section, board } = match;
-      const newMatch = await MatchModel.create(
-        [
-          {
-            player1: queuedPlayer.userId,
-            status: MatchStatus.Waiting,
-            section,
-            board,
-            player1SocketId: queuedPlayer.socketId,
-          },
-        ],
-        { session },
-      );
+    // Notify both players about the result
+    io.to(match.player1SocketId).emit("match-result", {
+      result: resultMessage,
+    });
+    io.to(match.player2SocketId).emit("match-result", {
+      result: resultMessage,
+    });
 
-      await session.commitTransaction();
-      session.endSession();
+    // TODO: Update the leaderboard here in the future
 
-      // Notify the new player of the found match
-      io.to(queuedPlayer.socketId).emit("match-found", {
-        matchId: (newMatch as any)._id,
-        opponentId: null,
-      });
-    } else {
-      await session.commitTransaction();
-      session.endSession();
-    }
+    // Start the next match or notify the users if no one is in the queue
+    //await matchFinished(match, session, io);
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("Error handling finished match:", error);
+    console.error("Error during processing match result:", error);
+    io.to(match.player1SocketId).emit(
+      "error",
+      "An error occurred while processing the result",
+    );
+    io.to(match.player2SocketId).emit(
+      "error",
+      "An error occurred while processing the result",
+    );
   }
 }

@@ -12,6 +12,7 @@ export enum MatchStatus {
   Waiting = "waiting",
   Matched = "matched",
   Finished = "finished",
+  AwaitingResult = "awaitingResult",
 }
 
 @modelOptions({
@@ -30,23 +31,29 @@ export class Match {
   @prop({ ref: () => User })
   public player2?: Ref<User>;
 
-  @prop({ enum: MatchStatus, default: MatchStatus.Waiting })
-  public status!: MatchStatus;
-
-  @prop()
+  @prop({ required: true })
   public section!: number;
 
-  @prop()
+  @prop({ required: true })
   public board!: number;
 
-  @prop({ type: () => [String], default: ["pending", "pending"] })
-  public result!: string[];
+  @prop({ type: () => String, enum: MatchStatus, default: MatchStatus.Waiting })
+  public status!: MatchStatus;
 
-  @prop()
+  @prop({ required: true })
   public player1SocketId!: string;
 
   @prop()
   public player2SocketId?: string;
+
+  @prop({ type: () => [String], default: ["pending", "pending"] })
+  public result!: string[];
+
+  @prop({ type: () => [Boolean], default: [false, false] })
+  public resultSubmitted!: boolean[]; // Indicate if players have submitted their results
+
+  @prop({ type: () => [Boolean], default: [false, false] })
+  public rematchAccepted!: boolean[]; // Indicate if players have accepted rematch
 }
 
 const MatchModel = mongoose.connection

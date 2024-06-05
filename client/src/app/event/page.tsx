@@ -19,6 +19,8 @@ export type Match = {
   board: number;
   result: [string, string];
   player1SocketId: string;
+  player2SocketId: string;
+  resultSubmitted: [boolean, boolean];
 };
 
 export type User = {
@@ -45,12 +47,18 @@ const getUser = async (userId: string): Promise<User> => {
   return user.data;
 };
 
+const socket = io(process.env.NEXT_PUBLIC_BACKEND as string, {
+  autoConnect: false,
+});
+
 const Event = () => {
   const [message, setMessage] = useState("");
   const [isLoadingMatchmaking, setIsLoadingMatchmaking] = useState(false);
   const [match, setMatch] = useState<Match>();
   const [player1, setPlayer1] = useState<User>();
   const [player2, setPlayer2] = useState<User>();
+  const [waitingOnResults, setWaitingOnResults] = useState(false);
+  const [submittedResults, setSubmittedResults] = useState(false);
 
   const { isLoaded, userId } = useAuth();
 
@@ -59,7 +67,7 @@ const Event = () => {
 
     if (!isLoadingMatchmaking) return;
 
-    const socket = io(process.env.NEXT_PUBLIC_BACKEND as string);
+    socket.connect();
 
     socket.on("connect", () => {
       console.log("Connected to WebSocket server");
@@ -70,9 +78,23 @@ const Event = () => {
     socket.on("match-found", async (data) => {
       console.log("Match found:", data);
       setIsLoadingMatchmaking(false);
-      const match = await getMatch(data);
+      const match = await getMatch(data.matchId);
+      const player1 = await getUser(match.player1);
+      const player2 = await getUser(match.player2);
       setMatch(match);
+      setPlayer1(player1);
+      setPlayer2(player2);
       // Update UI to display the matched opponent
+    });
+
+    socket.on("match-result", async (data) => {
+      setSubmittedResults(true);
+      setWaitingOnResults(false);
+    });
+
+    socket.on("waiting-for-result", (data) => {
+      setSubmittedResults(true);
+      setWaitingOnResults(true);
     });
 
     socket.on("match-rejoined", async (data) => {
@@ -81,10 +103,18 @@ const Event = () => {
       const match = await getMatch(data.matchId);
       const player1 = await getUser(match.player1);
       const player2 = await getUser(match.player2);
+      const submittedResults =
+        data.opponentId === match.player1
+          ? match.resultSubmitted[1]
+          : match.resultSubmitted[0];
+
+      const waitingOnresults =
+        !match.resultSubmitted[1] || !match.resultSubmitted[0];
+      setSubmittedResults(submittedResults);
+      setWaitingOnResults(waitingOnresults);
       setPlayer1(player1);
       setPlayer2(player2);
       setMatch(match);
-      console.log(match, player1, player2);
       // Update UI to display the matched opponent
     });
 
@@ -94,7 +124,7 @@ const Event = () => {
     });
 
     return () => {
-      socket.disconnect();
+      socket.connect();
     };
   }, [isLoaded, userId, isLoadingMatchmaking]);
 
@@ -139,6 +169,17 @@ const Event = () => {
               player1={player1 as User}
               player2={player2 as User}
               match={match as Match}
+              waitingOnResults={waitingOnResults}
+              submittedResults={submittedResults}
+              submitResult={(result) => {
+                console.log(match as Match, result);
+                const old = { ...match, result: [result, result] };
+                setMatch(old as any);
+                socket.emit("submit-result", {
+                  matchId: (match as Match)._id,
+                  result,
+                });
+              }}
             />
           </>
         )}
