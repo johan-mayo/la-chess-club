@@ -169,11 +169,12 @@ async function rejoinMatch(
     session.endSession();
 
     // Notify player of rejoining match
-    io.to(socketId).emit("match-rejoined", {
-      matchId: match._id,
-      opponentId:
-        match.player1.toString() === userId ? match.player2 : match.player1,
-    });
+    if (match.status !== MatchStatus.Waiting)
+      io.to(socketId).emit("match-rejoined", {
+        matchId: match._id,
+        opponentId:
+          match.player1.toString() === userId ? match.player2 : match.player1,
+      });
     return true;
   } catch (error) {
     await session.abortTransaction();
