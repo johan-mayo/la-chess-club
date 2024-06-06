@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import LeaderboardModel from "./leaderboard.model";
 
-export const getLeaderboard = async (req: Request, res: Response) => {
+export const getLeaderboard = async (_req: Request, res: Response) => {
   try {
     const leaderboardEntries = await LeaderboardModel.find()
       .sort({ score: -1 }) // Sort by score in descending order
