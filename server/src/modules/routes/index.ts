@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import matchRoutes from "../match/match.route";
 import userRoutes from "../user/user.route";
+import leaderboardRoutes from "../leaderboard/leaderboard.route";
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.get("/", (_req: Request, res: Response) => {
 // Define other routes here
 router.use("/match", matchRoutes);
 router.use("/user", userRoutes);
+router.use("/leaderboard", leaderboardRoutes);
 // router.use("/users", userRoutes);
 // router.use("/events", eventRoutes);
 

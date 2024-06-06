@@ -9,6 +9,7 @@ import { Button } from "@/components/Button";
 import Link from "next/link";
 import axios from "axios";
 import FaceOffCard from "@/components/FaceOffCard";
+import { useRouter } from "next/navigation";
 
 export type Match = {
   _id: string;
@@ -40,7 +41,7 @@ const getMatch = async (matchId: string): Promise<Match> => {
   return res.data;
 };
 
-const getUser = async (userId: string): Promise<User> => {
+export const getUser = async (userId: string): Promise<User> => {
   const user = await axios.get<User>(
     `${process.env.NEXT_PUBLIC_BACKEND}/api/user?id=${userId}`,
   );
@@ -62,6 +63,7 @@ const Event = () => {
   const [oponent, setOponent] = useState("");
 
   const { isLoaded, userId } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (!isLoaded || !userId) return;
@@ -137,6 +139,10 @@ const Event = () => {
       setMatch(match);
     });
 
+    socket.on("rematch-declined", async (data) => {
+      router.push("/leaderbaord");
+    });
+
     socket.on("message", (data) => {
       console.log("Received message:", data);
       setMessage(data);
@@ -145,7 +151,7 @@ const Event = () => {
     return () => {
       socket.connect();
     };
-  }, [isLoaded, userId, isLoadingMatchmaking]);
+  }, [isLoaded, userId, isLoadingMatchmaking, router]);
 
   const sendMessage = () => {
     const socket = io("http://localhost:3000");
@@ -194,6 +200,13 @@ const Event = () => {
               acceptRematch={(userId) => {
                 console.log(match._id);
                 socket.emit("accept-rematch", {
+                  matchId: match._id,
+                  userId: userId,
+                });
+              }}
+              declineRematch={(userId) => {
+                console.log(match._id);
+                socket.emit("decline-rematch", {
                   matchId: match._id,
                   userId: userId,
                 });

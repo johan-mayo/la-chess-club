@@ -3,6 +3,7 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import MatchModel, { MatchStatus } from "../modules/match/match.model";
 import UserModel from "../modules/user/user.model";
 import MatchQueueModel from "../modules/matchQueue/matchqueue.model";
+import LeaderboardModel from "../modules/leaderboard/leaderboard.model";
 
 export default function handleMatchmaking(io: SocketIOServer) {
   io.on("connection", (socket: Socket) => {
@@ -67,7 +68,6 @@ export default function handleMatchmaking(io: SocketIOServer) {
     });
 
     socket.on("accept-rematch", async ({ matchId, userId }) => {
-      console.log(matchId, userId);
       try {
         const match = await MatchModel.findById(matchId);
         if (!match) {
@@ -94,6 +94,39 @@ export default function handleMatchmaking(io: SocketIOServer) {
       } catch (error) {
         console.error("Error during rematch acceptance:", error);
         socket.emit("error", "An error occurred during rematch acceptance");
+      }
+    });
+
+    socket.on("decline-rematch", async ({ matchId, userId }) => {
+      try {
+        const match = await MatchModel.findById(matchId);
+        if (!match) {
+          socket.emit("error", "Match not found");
+          return;
+        }
+
+        if (match.player1.toString() !== userId) {
+          socket.emit("error", "Only player 1 can decline a rematch");
+          return;
+        }
+
+        const player1SocketId = match.player1SocketId + "";
+        const player2SocketId = match.player2SocketId + "";
+
+        // Reset match
+        match.status = MatchStatus.Waiting;
+        match.player1SocketId = "";
+        match.player2SocketId = "";
+        match.result = ["pending", "pending"];
+        match.resultSubmitted = [false, false];
+        match.rematchAccepted = [false, false];
+        await match.deleteOne();
+
+        io.to(player1SocketId).emit("rematch-declined", { matchId });
+        io.to(player2SocketId as string).emit("rematch-declined", { matchId });
+      } catch (error) {
+        console.error("Error during rematch decline:", error);
+        socket.emit("error", "An error occurred during rematch decline");
       }
     });
 
@@ -266,10 +299,12 @@ async function processMatchResult(
     // Determine the result
     const resultMessage =
       match.result[0] === match.result[1]
-        ? "It's a draw!"
-        : match.result[0] === "player1-won"
-          ? "Player 1 won!"
-          : "Player 2 won!";
+        ? "Draw"
+        : match.result[0] === "Player 1"
+          ? "Player 1"
+          : match.result[0] === "Player 2"
+            ? "Player 2"
+            : "Abort";
 
     // Update the match status to finished
     match.status = MatchStatus.Finished;
@@ -283,7 +318,20 @@ async function processMatchResult(
       result: resultMessage,
     });
 
-    // TODO: Update the leaderboard here in the future
+    let leaderboard1 = await LeaderboardModel.findOne({ user: match.player1 });
+    let leaderboard2 = await LeaderboardModel.findOne({
+      user: match.player2,
+    });
+    if (!leaderboard1)
+      leaderboard1 = await LeaderboardModel.create({ user: match.player1 });
+    if (!leaderboard2)
+      leaderboard2 = await LeaderboardModel.create({ user: match.player2 });
+
+    leaderboard1.score += match.result[0] === "Player 1" ? 1 : 0;
+    leaderboard2.score += match.result[0] === "Player 2" ? 1 : 0;
+
+    await leaderboard1.save();
+    await leaderboard2.save();
 
     // Start the next match or notify the users if no one is in the queue
     //await matchFinished(match, session, io);

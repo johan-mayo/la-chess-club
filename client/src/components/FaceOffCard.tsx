@@ -11,6 +11,7 @@ type FaceOffCardProps = {
   match: Match;
   submitResult: (key: string) => void;
   acceptRematch: (userId: string) => void;
+  declineRematch: (userId: string) => void;
   submittedResults: boolean;
   waitingOnResults: boolean;
   oponentId: string;
@@ -99,7 +100,13 @@ const FaceOffCard: React.FC<FaceOffCardProps> = (props) => {
               <Button onClick={() => props.acceptRematch(props.match.player1)}>
                 Rematch
               </Button>
-              <Button>No Rematch</Button>
+              <Button
+                onClick={() => {
+                  props.declineRematch(props.match.player1);
+                }}
+              >
+                No Rematch
+              </Button>
             </div>
           )}
           {props.oponentId === props.match.player1 && (

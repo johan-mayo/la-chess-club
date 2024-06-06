@@ -18,8 +18,11 @@ import { User } from "../user/user.model";
   },
 })
 export class Leaderboard {
-  @prop({ required: true })
-  public users!: Array<{ user: Ref<User>; score: number }>;
+  @prop({ required: true, unique: true })
+  public user!: Ref<User>;
+
+  @prop({ required: true, default: 0 })
+  public score!: number;
 }
 
 const LeaderboardModel = mongoose.connection
