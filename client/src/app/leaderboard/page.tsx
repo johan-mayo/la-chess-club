@@ -2,13 +2,20 @@
 
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { User, getUser } from "../event/page";
+import { User } from "../event/page";
 import { Container } from "@/components/Container";
 import { Layout } from "@/components/Layout";
 
 type Entry = {
   user: string;
   score: number;
+};
+
+const getUser = async (userId: string): Promise<User> => {
+  const user = await axios.get<User>(
+    `${process.env.NEXT_PUBLIC_BACKEND}/api/user?id=${userId}`,
+  );
+  return user.data;
 };
 
 const getLeaderboard = async (): Promise<Entry[]> => {

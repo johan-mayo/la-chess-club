@@ -41,7 +41,7 @@ const getMatch = async (matchId: string): Promise<Match> => {
   return res.data;
 };
 
-export const getUser = async (userId: string): Promise<User> => {
+const getUser = async (userId: string): Promise<User> => {
   const user = await axios.get<User>(
     `${process.env.NEXT_PUBLIC_BACKEND}/api/user?id=${userId}`,
   );
